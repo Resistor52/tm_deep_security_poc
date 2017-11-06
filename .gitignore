@@ -1,0 +1,4 @@
+setup.conf
+temp/*
+.DS_Store
+config-ec2-with-agent.sh

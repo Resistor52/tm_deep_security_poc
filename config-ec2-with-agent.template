@@ -1,0 +1,58 @@
+#!/bin/bash
+logfile=/tmp/setup.log
+echo "START" > logfile
+exec > $logfile 2>&1  # Log stdout and std to logfile in /tmp
+
+# Script to configure typical Linux host after launchtime
+
+# Check for root
+[ "$(id -u)" -ne 0 ] && echo "Incorrect Permissions - Run this script as root" && exit 1
+
+TIMESTAMP=$(date)
+
+echo; echo "== Install Updates"
+yum -y update
+
+echo; echo "== Turn on Process Accounting"
+chkconfig psacct on
+
+echo; echo "== Setup Trend Micro Deep Security Agent"
+echo; echo "== Installing the TrendMicro Agent"
+# This script detects platform and architecture, then downloads and installs the matching Deep Security Agent package
+ if [[ $(/usr/bin/id -u) -ne 0 ]]; then echo You are not running as the root user.  Please try again with root privileges.;
+    logger -t You are not running as the root user.  Please try again with root privileges.;
+    exit 1;
+ fi;
+if type curl >/dev/null 2>&1; then
+  SOURCEURL='https://app.deepsecurity.trendmicro.com:443'
+  curl $SOURCEURL/software/deploymentscript/platform/linux/ -o /tmp/DownloadInstallAgentPackage --silent --tlsv1.2
+
+  if [ -s /tmp/DownloadInstallAgentPackage ]; then
+    if echo '55DC460117E34CC6C49480C6BB1AD9FC3F55BBE397B1517DCBA8A6998F641FBB  /tmp/DownloadInstallAgentPackage' | sha256sum -c; then
+      . /tmp/DownloadInstallAgentPackage
+      Download_Install_Agent
+    else
+      echo "Failed to validate the agent installation script."
+      logger -t Failed to validate the agent installation script
+      false
+    fi
+  else
+     echo "Failed to download the agent installation script."
+     logger -t Failed to download the Deep Security Agent installation script
+     false
+  fi
+else
+  echo Please install CURL before running this script
+  logger -t Please install CURL before running this script
+  false
+fi
+sleep 15
+/opt/ds_agent/dsa_control -r
+/opt/ds_agent/dsa_control -a dsm://agents.deepsecurity.trendmicro.com:443/ \
+"description:Linux - $TIMESTAMP" \
+"===TENANTID===" \
+"===TOKEN===" "policyid:1"
+
+
+echo; echo "== SCRIPT COMPLETE"
+echo; echo "== $0 has completed"
